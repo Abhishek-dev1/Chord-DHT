@@ -3,14 +3,14 @@
 #include "functions.h"
 #include "utill.h"
 
-typedef long long int lli;
+typedef long long int ll;
 
 using namespace std;
 
 utillFunctions help = utillFunctions();
 
 
-/* put the entered key to the proper node */
+//put the entered key to the required node 
 void put(string key,string value,NodeDht &nodeInfo){
 	if(key == "" || value == ""){
 		cout<<"Key or value field empty\n";
@@ -19,10 +19,10 @@ void put(string key,string value,NodeDht &nodeInfo){
 
 	else{
 
-        lli keyHash = help.getHash(key);
+        ll keyHash = help.getHash(key);
 		cout<<"Key is "<<key<<" and hash : "<<keyHash<<endl;
 
-        pair< pair<string,int> , lli > node = nodeInfo.findSuccessor(keyHash);
+        pair< pair<string,int> , ll > node = nodeInfo.findSuccessor(keyHash);
 
         help.sendKeyToNode(node,keyHash,value);
 
@@ -30,7 +30,7 @@ void put(string key,string value,NodeDht &nodeInfo){
 	}
 }
 
-/* get key from the desired node */
+//Get key from the required node 
 void get(string key,NodeDht nodeInfo){
 
     if(key == ""){
@@ -39,9 +39,9 @@ void get(string key,NodeDht nodeInfo){
     }
     else{
         
-        lli keyHash = help.getHash(key);
+        ll keyHash = help.getHash(key);
 
-        pair< pair<string,int> , lli > node = nodeInfo.findSuccessor(keyHash);
+        pair< pair<string,int> , ll > node = nodeInfo.findSuccessor(keyHash);
 
         string val = help.getKeyFromNode(node,to_string(keyHash));
 
@@ -53,7 +53,7 @@ void get(string key,NodeDht nodeInfo){
     }
 }
 
-/* create a new ring */
+//Create aring 
 void create(NodeDht &nodeInfo){
 
     string ip = nodeInfo.sp.getIpAddress();
@@ -62,9 +62,9 @@ void create(NodeDht &nodeInfo){
     /* key to be hashed for a node is ip:port */
     string key = ip+":"+(to_string(port));   
     
-    lli hash = help.getHash(key);
+    ll hash = help.getHash(key);
 
-    /* setting id, successor , successor list , predecessor ,finger table and status of node */
+    // setting id, successor , successor list , predecessor ,finger table and status of node 
     nodeInfo.setId(hash);
     nodeInfo.setSuccessor(ip,port,hash);
     nodeInfo.setSuccessorList(ip,port,hash);
@@ -72,7 +72,7 @@ void create(NodeDht &nodeInfo){
     nodeInfo.setFingerTable(ip,port,hash);
     nodeInfo.setStatus();
 
-    /* launch threads,one thread will listen to request from other nodes,one will do stabilization */
+    // launch threads,one thread will listen to request from other nodes,one will do stabilization 
     thread second(listenTo,ref(nodeInfo));
     second.detach();
 
@@ -81,7 +81,7 @@ void create(NodeDht &nodeInfo){
 
 }
 
-/* join in a DHT ring */
+//join in a DHT ring 
 void join(NodeDht &nodeInfo,string ip,string port){
 
     if(help.isNodeAlive(ip,atoi(port.c_str())) == false){
@@ -107,7 +107,7 @@ void join(NodeDht &nodeInfo,string ip,string port){
     string currPort = to_string(nodeInfo.sp.getPortNumber()); 
 
     /* generate id of current node */
-    lli nodeId = help.getHash(currIp+":"+currPort);    
+    ll nodeId = help.getHash(currIp+":"+currPort);    
 
     char charNodeId[41];
     strcpy(charNodeId,to_string(nodeId).c_str());
@@ -120,7 +120,7 @@ void join(NodeDht &nodeInfo,string ip,string port){
         exit(-1);
     }
 
-    /* node receives id and port of it's successor */
+    // node receives id and port of it's successor 
     char ipAndPort[40];
     int len;
     if ((len = recvfrom(sock, ipAndPort, 1024, 0, (struct sockaddr *) &server, &l)) == -1){
@@ -135,10 +135,10 @@ void join(NodeDht &nodeInfo,string ip,string port){
     cout<<"Successfully joined the ring\n";
 
     string key = ipAndPort;
-    lli hash = help.getHash(key);
+    ll hash = help.getHash(key);
     pair<string,int> ipAndPortPair = help.getIpAndPort(key);
 
-    /* setting id, successor , successor list , predecessor, finger table and status */
+    //setting id, successor , successor list , predecessor, finger table and status 
     nodeInfo.setId(nodeId);
     nodeInfo.setSuccessor(ipAndPortPair.first,ipAndPortPair.second,hash);
     nodeInfo.setSuccessorList(ipAndPortPair.first,ipAndPortPair.second,hash);
@@ -146,10 +146,10 @@ void join(NodeDht &nodeInfo,string ip,string port){
     nodeInfo.setFingerTable(ipAndPortPair.first,ipAndPortPair.second,hash);
     nodeInfo.setStatus();
 
-    /* get all keys from it's successor which belongs to it now */
+    // get all keys from it's successor which belongs to it now 
     help.getKeysFromSuccessor(nodeInfo , ipAndPortPair.first , ipAndPortPair.second);
 
-    /* launch threads,one thread will listen to request from other nodes,one will do stabilization */
+    // launch threads,one thread will listen to request from other nodes,one will do stabilization 
     thread fourth(listenTo,ref(nodeInfo));
     fourth.detach();
 
@@ -159,16 +159,16 @@ void join(NodeDht &nodeInfo,string ip,string port){
 }
 
 
-/* print successor,predecessor,successor list and finger table of node */
+//To print successor,predecessor,successor list and finger table of node 
 void printState(NodeDht nodeInfo){
     string ip = nodeInfo.sp.getIpAddress();
-    lli id = nodeInfo.getId();
+    ll id = nodeInfo.getId();
     int port = nodeInfo.sp.getPortNumber();
-    vector< pair< pair<string,int> , lli > > fingerTable = nodeInfo.getFingerTable();
+    vector< pair< pair<string,int> , ll > > fingerTable = nodeInfo.getFingerTable();
     cout<<"Self "<<ip<<" "<<port<<" "<<id<<endl;
-    pair< pair<string,int> , lli > succ = nodeInfo.getSuccessor();
-    pair< pair<string,int> , lli > pre = nodeInfo.getPredecessor();
-    vector < pair< pair<string,int> , lli > > succList = nodeInfo.getSuccessorList();
+    pair< pair<string,int> , ll > succ = nodeInfo.getSuccessor();
+    pair< pair<string,int> , ll > pre = nodeInfo.getPredecessor();
+    vector < pair< pair<string,int> , ll > > succList = nodeInfo.getSuccessorList();
     cout<<"Succ "<<succ.first.first<<" "<<succ.first.second<<" "<<succ.second<<endl;
     cout<<"Pred "<<pre.first.first<<" "<<pre.first.second<<" "<<pre.second<<endl;
     for(int i=1;i<=M;i++){
@@ -187,15 +187,15 @@ void printState(NodeDht nodeInfo){
 
 /* node leaves the DHT ring */
 void leave(NodeDht &nodeInfo){
-    pair< pair<string,int> , lli > succ = nodeInfo.getSuccessor();
-    lli id = nodeInfo.getId();
+    pair< pair<string,int> , ll > succ = nodeInfo.getSuccessor();
+    ll id = nodeInfo.getId();
 
     if(id == succ.second)
         return;
 
     /* transfer all keys to successor before leaving the ring */
 
-    vector< pair<lli , string> > keysAndValuesVector = nodeInfo.getAllKeysForSuccessor();
+    vector< pair<ll , string> > keysAndValuesVector = nodeInfo.getAllKeysForSuccessor();
 
     if(keysAndValuesVector.size() == 0)
         return;
@@ -241,7 +241,7 @@ void doTask(NodeDht &nodeInfo,int newSock,struct sockaddr_in client,string nodeI
 
     /* check if the sent msg is in form of key:val, if yes then store it in current node (for put ) */
     else if(help.isKeyValue(nodeIdString)){
-        pair< lli , string > keyAndVal = help.getKeyAndVal(nodeIdString);
+        pair< ll , string > keyAndVal = help.getKeyAndVal(nodeIdString);
         nodeInfo.storeKey(keyAndVal.first , keyAndVal.second);
     }
 
@@ -321,7 +321,7 @@ void doStabilize(NodeDht &nodeInfo){
 
         nodeInfo.fixFingers();
 
-        this_thread::sleep_for(chrono::milliseconds(300));
+        this_thread::sleep_for(chrono::millseconds(300));
     }
 }
 
@@ -335,9 +335,9 @@ void callNotify(NodeDht &nodeInfo,string ipAndPort){
     pair< string , int > ipAndPortPair = help.getIpAndPort(ipAndPort);
     string ip = ipAndPortPair.first;
     int port = ipAndPortPair.second;
-    lli hash = help.getHash(ipAndPort);
+    ll hash = help.getHash(ipAndPort);
 
-    pair< pair<string,int> , lli > node;
+    pair< pair<string,int> , ll > node;
     node.first.first = ip;
     node.first.second = port;
     node.second = hash;
@@ -346,7 +346,7 @@ void callNotify(NodeDht &nodeInfo,string ipAndPort){
     nodeInfo.notify(node);
 }
 
-/* tell about all commands */
+// Display Commands
 void showHelp(){
     cout<<"1) create : will create a DHT ring\n\n";
     cout<<"2) join <ip> <port> : will join ring by connecting to main node having ip and port\n\n";
