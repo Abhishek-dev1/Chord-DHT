@@ -1,5 +1,6 @@
 #include "headers.h"
 #include "utill.h"
+#include <netdb.h>
 #define ll long long int
 mutex mt;
 // To split the input get from terminal
@@ -137,7 +138,24 @@ string utillFunctions::getKeyFromNode(pair< pair<string,int> , ll > node,string 
 // fillng server details that we want to connect
 void utillFunctions::setServerDetails(struct sockaddr_in &server,string ip,int port){
     server.sin_family = AF_INET;
-    server.sin_addr.s_addr = inet_addr(ip.c_str());
+
+    struct in_addr addr;
+    /* try dotted-decimal first */
+    if(inet_aton(ip.c_str(), &addr) != 0){
+        server.sin_addr = addr;
+    }
+    else{
+        /* fallback to DNS lookup for names like 'localhost' */
+        struct hostent *he = gethostbyname(ip.c_str());
+        if(he == NULL){
+            /* if resolution fails, default to loopback */
+            server.sin_addr.s_addr = inet_addr("127.0.0.1");
+        }
+        else{
+            server.sin_addr = *(struct in_addr*)he->h_addr;
+        }
+    }
+
     server.sin_port = htons(port);
 }
 

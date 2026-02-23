@@ -291,11 +291,14 @@ void listenTo(NodeDht &nodeInfo){
 
     /* wait for any client to connect and create a new thread as soon as one connects */
     while(1){
-        char charNodeId[40];
+        const int BUF_SIZE = 2048;
+        char charNodeId[BUF_SIZE];
         int sock = nodeInfo.sp.getSocketFd();
-        int len = recvfrom(sock, charNodeId, 1024, 0, (struct sockaddr *) &client, &l);
+        int len = recvfrom(sock, charNodeId, BUF_SIZE-1, 0, (struct sockaddr *) &client, &l);
+        if(len <= 0) continue;
+        if(len >= BUF_SIZE) len = BUF_SIZE-1;
         charNodeId[len] = '\0';
-        string nodeIdString = charNodeId;
+        string nodeIdString = string(charNodeId, len);
 
         /* launch a thread that will perform diff tasks acc to received msg */
         thread f(doTask,ref(nodeInfo),sock,client,nodeIdString);
