@@ -5,13 +5,17 @@ mutex mt;
 // To split the input get from terminal
 vector<string> utillFunctions::splitCommand(string command){
     vector<string> arguments;
-    int pos = 0;
-    do{
+    size_t pos = 0;
+    while(pos != string::npos){
         pos = command.find(' ');
-        string arg = command.substr(0,pos); 
-        arguments.push_back(arg);
-        command = command.substr(pos+1);
-    }while(pos != -1);
+        string arg = command.substr(0, pos);
+        if(!arg.empty()) {
+            arguments.push_back(arg);
+        }
+        if(pos != string::npos) {
+            command = command.substr(pos + 1);
+        }
+    }
     return arguments;
 }
 
