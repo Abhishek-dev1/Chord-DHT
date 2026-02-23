@@ -3,8 +3,6 @@
 #include "functions.h"
 #include "utill.h"
 
-typedef long long int ll;
-
 using namespace std;
 
 utillFunctions help = utillFunctions();
@@ -321,7 +319,7 @@ void doStabilize(NodeDht &nodeInfo){
 
         nodeInfo.fixFingers();
 
-        this_thread::sleep_for(chrono::millseconds(300));
+        this_thread::sleep_for(chrono::milliseconds(300));
     }
 }
 
