@@ -44,7 +44,7 @@ This is a **peer-to-peer distributed key-value store** implementation using the 
 │  │   NodeDht Class                  │  │
 │  │  ├─ Node ID (SHA-1 hash)         │  │
 │  │  ├─ Successor/Predecessor        │  │
-│  │  ├─ Finger Table (160 entries)   │  │
+│  │  ├─ Finger Table (M=48 entries)  │  │
 │  │  ├─ Data Dictionary              │  │
 │  │  └─ Successor List               │  │
 │  └──────────────────────────────────┘  │
@@ -132,7 +132,9 @@ The core component that represents a single node in the CHORD ring.
 
 #### 2. **Utility Functions (utility/)**
 
-**Max_lim.h**: Defines ring size (2^160 for SHA-1 hashes)
+**Max_lim.h**: Defines ring parameters:
+- `M = 48`: Number of finger table entries (can be increased up to 160 for full SHA-1 hash space)
+- `R = 10`: Size of successor list for fault tolerance
 
 **Port Functions (portFunction/port.cpp)**
 - Creates TCP server socket for inter-node communication
@@ -188,16 +190,17 @@ Key "mykey" → SHA-1("mykey") → Find successor of this hash → Store there
 ```
 
 ### 4. Finger Table (Fast Lookup)
-Each node maintains a finger table with log(N) entries pointing to:
+Each node maintains a finger table with M entries (currently 48, can be up to 160) pointing to:
 ```
 Finger[1] → successor of (NodeID + 2^0)
 Finger[2] → successor of (NodeID + 2^1)
 Finger[3] → successor of (NodeID + 2^2)
 ...
-Finger[160] → successor of (NodeID + 2^159)
+Finger[M] → successor of (NodeID + 2^(M-1))
 ```
-This enables logarithmic lookup instead of linear.
+This enables logarithmic O(log M) lookup. Even with M=48, the algorithm maintains excellent performance.
 
+Note: For theoretical CHORD with full 2^160 address space, M would be 160, but 48 entries are sufficient for practical deployments while reducing memory overhead.
 ### 5. Maintenance Operations
 - **Stabilize()**: Runs periodically to repair ring connections
 - **FixFingers()**: Updates finger table entries
@@ -212,10 +215,10 @@ For key k: responsible node = successor(SHA-1(k) mod 2^160)
 ```
 ✅ **Benefit**: Minimal data movement on node join/leave
 
-#### Ring Traversal (Finger Table)
+#### Ring Traversal (Finger Table with M=48)
 ```
 Finger[i] points to successor(NodeID + 2^(i-1))
-Query for key? Jump to closest finger, repeat 1-160 times max
+With 48 fingers, query for key requires max ~6 hops instead of O(N)
 ```
 ✅ **Benefit**: O(log N) hops instead of O(N)
 
@@ -240,7 +243,7 @@ Keys get redistributed to new node if needed
 | Metric | Value | Implication |
 |--------|-------|-------------|
 | Lookup hops | O(log N) | 1000 nodes = ~10 hops |
-| State per node | O(log N) | Only needs 160 finger entries |
+| State per node | O(log M) | Only needs M=48 finger entries (configurable, up to 160) |
 | Join time | O(log² N) | Fast integration of new nodes |
 | Scalability | Unbounded | Works from 2 to millions of nodes |
 
@@ -285,6 +288,22 @@ This removes all `.o` files but keeps the `chorddht` executable.
 rm -f chorddht *.o
 ```
 
+### Customizing Configuration
+
+The file `utility/Max_lim.h` contains configuration parameters:
+
+```cpp
+#define M 48  // Number of finger table entries (default: 48, can be 1-160)
+#define R 10  // Size of successor list for fault tolerance
+```
+
+**To use more finger table entries:**
+1. Edit `utility/Max_lim.h`
+2. Change `#define M 48` to `#define M 160` (or any value 1-160)
+3. Rebuild: `make clean && make`
+
+Note: Higher M values (up to 160) reduce hops but increase memory overhead. M=48 maintains O(log 48) ≈ 6 hops while being memory efficient.
+
 ---
 
 ## Usage Guide
@@ -323,8 +342,8 @@ Displays:
 - Node ID (SHA-1 hash of IP:Port)
 - Successor node pointer
 - Predecessor node pointer
-- Finger table (160 entries)
-- Successor list
+- Finger table (48 entries - M=48 configured in Max_lim.h)
+- Successor list (10 entries - R=10 configured in Max_lim.h)
 
 #### Step 4: Store Data (Put Operation)
 ```
@@ -477,7 +496,7 @@ After 3 nodes join:
 Each node maintains:
 - Successor pointer (next node clockwise)
 - Predecessor pointer (previous node clockwise)
-- 160-entry Finger Table (for efficient routing)
+- M=48-entry Finger Table (configurable in Max_lim.h, for efficient routing)
 - Successor List (backup successors for fault tolerance)
 ```
 
