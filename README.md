@@ -2,7 +2,7 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [What You Built](#what-you-built)
+2. [Implementation Overview](#implementation-overview)
 3. [Technology Stack](#technology-stack)
 4. [Architecture](#architecture)
 5. [How CHORD Works](#how-chord-works)
@@ -26,10 +26,10 @@
 
 ---
 
-## What You Built
+## Implementation Overview
 
-A **peer-to-peer distributed key-value store** using the **CHORD protocol** that allows:
-- Multiple nodes to form a self-organizing network ring
+This is a **peer-to-peer distributed key-value store** implementation using the **CHORD protocol** that provides:
+- Multiple nodes forming self-organizing network rings
 - Efficient O(log N) lookup of keys across the network
 - Automatic data distribution and balancing
 - Graceful node addition and removal
@@ -114,7 +114,7 @@ NodeDht (Core Data Structure)
 ### Core Components
 
 #### 1. **NodeDht (nodeClass/)**
-The heart of your implementation - represents a single node in the CHORD ring.
+The core component that represents a single node in the CHORD ring.
 
 **Key Data Structures:**
 - `id` (long long int): SHA-1 hash of the node's IP:Port
@@ -249,7 +249,7 @@ Keys get redistributed to new node if needed
 ## Building the Project
 
 ### Prerequisites
-Ensure you have the required development libraries:
+The following development libraries are required:
 ```bash
 sudo apt-get install -y libssl-dev build-essential
 ```
@@ -309,7 +309,7 @@ The program auto-assigns a random port.
 > create
 ```
 
-This creates the first node/ring. Your node becomes its own successor and predecessor.
+This creates the first node/ring. The node becomes its own successor and predecessor.
 
 #### Step 3: Check Node Information
 ```
@@ -319,7 +319,7 @@ This creates the first node/ring. Your node becomes its own successor and predec
 > printstate
 ```
 
-Shows your:
+Displays:
 - Node ID (SHA-1 hash of IP:Port)
 - Successor node pointer
 - Predecessor node pointer
@@ -333,7 +333,7 @@ Shows your:
 > put email john@example.com
 ```
 
-Stores key-value pairs on this node's storage.
+Stores key-value pairs in the node's storage.
 
 #### Step 5: Retrieve Data (Get Operation)
 ```
@@ -433,7 +433,7 @@ Joins Node A's ring and connects to the existing nodes.
 
 ### Data Distribution
 
-When you store data across multiple nodes:
+When data is stored across multiple nodes:
 
 ```
 Node A (Port 5000):
@@ -595,7 +595,7 @@ Invalid Format
 ## Advanced Tips
 
 ### Multiple Rings on Same Machine
-You can run multiple DHT rings on the same machine using different ports:
+Multiple DHT rings can be run on the same machine using different ports:
 
 ```bash
 # Terminal 1:
@@ -607,7 +607,7 @@ You can run multiple DHT rings on the same machine using different ports:
 > port 6000
 > create
 
-# Now you have 2 independent rings
+# Result: 2 independent rings
 ```
 
 ### Querying Remote Nodes
@@ -648,11 +648,11 @@ Ring state should stabilize as nodes run stabilize() and fixFingers() maintenanc
 
 ## References
 
-Your implementation is based on:
+This implementation is based on:
 1. [MIT CHORD Paper](https://pdos.csail.mit.edu/papers/ton:chord/paper-ton.pdf) - Original research
 2. [CMU DHT Lecture](https://www.cs.cmu.edu/~dga/15-744/S07/lectures/16-dht.pdf) - Educational overview
 
-### Key Features of Your Implementation
+### Key Features of This Implementation
 
 1. **Fully Distributed**: No central authority needed
 2. **Self-Healing**: Ring repairs itself automatically
