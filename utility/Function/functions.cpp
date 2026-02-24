@@ -185,6 +185,12 @@ void printState(NodeDht nodeInfo){
 
 /* node leaves the DHT ring */
 void leave(NodeDht &nodeInfo){
+    /* Check if node is in ring before attempting to leave */
+    if(!nodeInfo.getStatus()){
+        cout << "Node is not in any ring. Nothing to leave." << endl;
+        return;
+    }
+
     pair< pair<string,int> , ll > succ = nodeInfo.getSuccessor();
     ll id = nodeInfo.getId();
 
@@ -349,12 +355,12 @@ void callNotify(NodeDht &nodeInfo,string ipAndPort){
 
 // Display Commands
 void showHelp(){
-    cout<<"1) create : will create a DHT ring\n\n";
-    cout<<"2) join <ip> <port> : will join ring by connecting to main node having ip and port\n\n";
-    cout<<"3) printstate : will print successor, predecessor, fingerTable and Successor list\n\n";
-    cout<<"4) print : will print all keys and values present in that node\n\n";
-    cout<<"5) port : will display port number on which node is listening\n\n";
-    cout<<"6) port <number> : will change port number to mentioned number if that port is free\n\n";
-    cout<<"7) put <key> <value> : will put key and value to the node it belongs to\n\n";
-    cout<<"8) get <key> : will get value of mentioned key\n\n";
+    cout<<"1) create : will create a DHT ring\n";
+    cout<<"2) join <ip> <port> : will join ring by connecting to main node having ip and port\n";
+    cout<<"3) printstate : will print successor, predecessor, fingerTable and Successor list\n";
+    cout<<"4) print : will print all keys and values present in that node\n";
+    cout<<"5) port : will display port number on which node is listening\n";
+    cout<<"6) port <number> : will change port number to mentioned number if that port is free\n";
+    cout<<"7) put <key> <value> : will put key and value to the node it belongs to\n";
+    cout<<"8) get <key> : will get value of mentioned key\n";
 }
