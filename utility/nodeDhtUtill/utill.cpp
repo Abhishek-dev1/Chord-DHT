@@ -213,8 +213,8 @@ void utillFunctions::getKeysFromSuccessor(NodeDht &nodeInfo,string ip,int port){
 
     int sock = socket(AF_INET,SOCK_DGRAM,0);
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("Error: Socket creation failed in getKeysFromSuccessor");
+        return;
     }
 
     /* node sends msg "getKeys:id" to it's successor to get all keys which belongs to this node now */
@@ -231,9 +231,13 @@ void utillFunctions::getKeysFromSuccessor(NodeDht &nodeInfo,string ip,int port){
     char keysAndValuesChar[2000];
     int len = recvfrom(sock,keysAndValuesChar,2000,0,(struct sockaddr *) &serverToConnectTo,&l);
 
-    keysAndValuesChar[len] = '\0';
-
     close(sock);
+
+    if(len < 0){
+        return;
+    }
+
+    keysAndValuesChar[len] = '\0';
 
     string keysAndValues = keysAndValuesChar;
 
@@ -428,24 +432,18 @@ ll utillFunctions::getSuccessorId(string ip,int port){
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("Error: Socket creation failed in getSuccessorId");
+        return -1;
     }
 
     setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char*)&timer,sizeof(struct timeval));
 
-    if(sock < -1){
-        cout<<"socket error";
-        perror("error");
-        exit(-1);
-    }
-
     char msg[] = "finger";
 
     if (sendto(sock, msg, strlen(msg) , 0, (struct sockaddr*) &serverToConnectTo, l) == -1){
-        cout<<"sending failed"<<sock<<endl;
-        perror("error");
-        exit(-1);
+        perror("Error: sendto failed in getSuccessorId");
+        close(sock);
+        return -1;
     }
 
     char succIdChar[40];
@@ -506,9 +504,13 @@ pair< pair<string,int> , ll > utillFunctions::getPredecessorNode(string ip,int p
     strcpy(ipAndPortChar,msg.c_str());
 
     if (sendto(sock, ipAndPortChar, strlen(ipAndPortChar), 0, (struct sockaddr*) &serverToConnectTo, l) < 0){
-        cout<<"error"<<sock<<endl;
-        perror("error");
-        exit(-1);
+        perror("Error: sendto failed in getPredecessorNode");
+        close(sock);
+        pair< pair<string,int> , ll > node;
+        node.first.first = "";
+        node.first.second = -1;
+        node.second = -1;
+        return node;
     }
 
     int len = recvfrom(sock, ipAndPortChar, 1024, 0, (struct sockaddr *) &serverToConnectTo, &l);
@@ -561,8 +563,9 @@ vector< pair<string,int> > utillFunctions::getSuccessorListFromNode(string ip,in
 
     int sock = socket(AF_INET,SOCK_DGRAM,0);
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("Error: Socket creation failed in getSuccessorListFromNode");
+        vector< pair<string,int> > list;
+        return list;
     }
 
     setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char*)&timer,sizeof(struct timeval));
@@ -640,8 +643,8 @@ bool utillFunctions::isNodeAlive(string ip,int port){
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("Error: Socket creation failed in isNodeAlive");
+        return false;
     }
 
     //set timer on this socket 

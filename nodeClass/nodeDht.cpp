@@ -35,6 +35,7 @@ vector< pair< pair<string, int> , ll > > NodeDht::getSuccessorList() {return suc
 bool NodeDht::getStatus() {return isInRing;}
 
 string NodeDht::getValue(ll key) {
+	lock_guard<mutex> lock(dataMutex);
 	if (dictionary.find(key) != dictionary.end()) {
 		return dictionary[key];
 	}
@@ -47,7 +48,10 @@ void NodeDht::setFingerTable(string ip, int port, ll hash) {
 	}
 }
 
-void NodeDht::storeKey(ll key, string val) {dictionary[key] = val;}
+void NodeDht::storeKey(ll key, string val) {
+	lock_guard<mutex> lock(dataMutex);
+	dictionary[key] = val;
+}
 
 void NodeDht::setSuccessorList(string ip, int port, ll hash) {
 	for (int i = 1; i <= R; i++) {
@@ -66,6 +70,7 @@ void NodeDht::setPredecessor(string ip, int port, ll hash) {
 
 
 void NodeDht::printKeys() {
+	lock_guard<mutex> lock(dataMutex);
 	map<ll, string>::iterator it;
 
 	for (it = dictionary.begin(); it != dictionary.end() ; it++) {
@@ -95,39 +100,55 @@ void NodeDht::updateSuccessorList() {
 
 //Send all keys of this node to it's successor after it leaves the ring
 vector< pair<ll , string> > NodeDht::getAllKeysForSuccessor() {
+	lock_guard<mutex> lock(dataMutex);
 	map<ll, string>::iterator it;
 	vector< pair<ll , string> > res;
 
-	for (it = dictionary.begin(); it != dictionary.end() ; it++) {
+	// Collect all keys first, THEN erase to avoid iterator invalidation
+	for (it = dictionary.begin(); it != dictionary.end() ; ++it) {
 		res.push_back(make_pair(it->first , it->second));
-		dictionary.erase(it);
 	}
+
+	// Now erase all keys
+	dictionary.clear();
 
 	return res;
 }
 
 vector< pair<ll , string> > NodeDht::getKeysForPredecessor(ll nodeId) {
+	lock_guard<mutex> lock(dataMutex);
 	map<ll, string>::iterator it;
-
 	vector< pair<ll , string> > res;
+	vector<ll> keysToDelete;
+
 	for (it = dictionary.begin(); it != dictionary.end() ; it++) {
 		ll keyId = it->first;
+
+		// Collect keys that should be moved
+		bool shouldMove = false;
 
 		// if predecessor's id is more than current node's id
 		if (id < nodeId) {
 			if (keyId > id && keyId <= nodeId) {
-				res.push_back(make_pair(keyId , it->second));
-				dictionary.erase(it);
+				shouldMove = true;
 			}
 		}
-
 		// if predecessor's id is less than current node's id
 		else {
 			if (keyId <= nodeId || keyId > id) {
-				res.push_back(make_pair(keyId , it->second));
-				dictionary.erase(it);
+				shouldMove = true;
 			}
 		}
+
+		if (shouldMove) {
+			res.push_back(make_pair(keyId , it->second));
+			keysToDelete.push_back(keyId);
+		}
+	}
+
+	// Now erase the keys after iteration completes
+	for (int i = 0; i < keysToDelete.size(); i++) {
+		dictionary.erase(keysToDelete[i]);
 	}
 
 	return res;
@@ -385,3 +406,24 @@ void NodeDht::fixFingers() {
 	}
 
 }
+
+// Check if a key belongs to this node based on Chord protocol
+bool NodeDht::keyBelongsToThisNode(ll keyId) {
+	ll predId = predecessor.second;
+	
+	// If predecessor is not set, key belongs to this node only in certain cases
+	if (predId == -1) {
+		// Node is alone in the ring or not fully stabilized
+		return keyId == id || (keyId > id || keyId <= successor.second);
+	}
+	
+	// Normal case: key belongs to this node if it's between predecessor and this node
+	if (predId < id) {
+		// Normal case: predId < id
+		return keyId > predId && keyId <= id;
+	} else {
+		// Wrap-around case: predId > id
+		return keyId > predId || keyId <= id;
+	}
+}
+

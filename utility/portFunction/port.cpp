@@ -34,7 +34,7 @@ bool SocketAndPort::portInUse(int portNo){
 	newCurr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	
 	if( bind(newSock,(struct sockaddr *)&newCurr,len) < 0){
-		perror("error");
+		close(newSock);
 		return true;
 	}
 	else{

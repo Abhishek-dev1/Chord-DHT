@@ -97,8 +97,8 @@ void join(NodeDht &nodeInfo,string ip,string port){
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("Error: Socket creation failed in join()");
+        return;
     }
 
     string currIp = nodeInfo.sp.getIpAddress();
@@ -113,18 +113,18 @@ void join(NodeDht &nodeInfo,string ip,string port){
 
     /* node sends it's id to main node to find it's successor */
     if (sendto(sock, charNodeId, strlen(charNodeId), 0, (struct sockaddr*) &server, l) == -1){
-        cout<<"yaha 1\n";
-        perror("error");
-        exit(-1);
+        perror("Error: Failed to send node ID in join()");
+        close(sock);
+        return;
     }
 
     // node receives id and port of it's successor 
     char ipAndPort[40];
     int len;
     if ((len = recvfrom(sock, ipAndPort, 1024, 0, (struct sockaddr *) &server, &l)) == -1){
-        cout<<"yaha 2\n";
-        perror("error");
-        exit(-1);
+        perror("Error: Failed to receive successor info in join()");
+        close(sock);
+        return;
     }
     ipAndPort[len] = '\0';
 
@@ -222,14 +222,16 @@ void leave(NodeDht &nodeInfo){
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("Error: Socket creation failed in leave()");
+        return;
     }
 
     char keysAndValuesChar[2000];
     strcpy(keysAndValuesChar,keysAndValues.c_str());
 
-    sendto(sock,keysAndValuesChar,strlen(keysAndValuesChar),0,(struct sockaddr *)&serverToConnectTo,l);
+    if(sendto(sock,keysAndValuesChar,strlen(keysAndValuesChar),0,(struct sockaddr *)&serverToConnectTo,l) < 0){
+        perror("Error: Failed to send keys in leave()");
+    }
 
     close(sock);
 }
@@ -246,7 +248,18 @@ void doTask(NodeDht &nodeInfo,int newSock,struct sockaddr_in client,string nodeI
     /* check if the sent msg is in form of key:val, if yes then store it in current node (for put ) */
     else if(help.isKeyValue(nodeIdString)){
         pair< ll , string > keyAndVal = help.getKeyAndVal(nodeIdString);
-        nodeInfo.storeKey(keyAndVal.first , keyAndVal.second);
+        
+        // Check if key belongs to this node
+        if(nodeInfo.keyBelongsToThisNode(keyAndVal.first)){
+            nodeInfo.storeKey(keyAndVal.first , keyAndVal.second);
+            cout << "Key " << keyAndVal.first << " stored successfully in this node" << endl;
+        }
+        else {
+            // Key does not belong to this node, forward to successor
+            cout << "Key " << keyAndVal.first << " does not belong to this node, forwarding to successor" << endl;
+            pair< pair<string,int> , ll > successor = nodeInfo.getSuccessor();
+            help.sendKeyToNode(successor, keyAndVal.first, keyAndVal.second);
+        }
     }
 
     else if(nodeIdString.find("alive") != -1){

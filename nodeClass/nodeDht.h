@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <mutex>
 #include "port.h"
 #include "Max_lim.h"
 
@@ -21,6 +22,9 @@ private:
 	vector< pair< pair<string, int> , ll > > successorList;
 
 	bool isInRing;
+	
+	// Mutex to protect shared data structures
+	mutable mutex dataMutex;
 
 public:
 	SocketAndPort sp;
@@ -55,6 +59,7 @@ public:
 	pair< pair<string, int> , ll > getPredecessor();
 	vector< pair< pair<string, int> , ll > > getSuccessorList();
 	bool getStatus();
+	bool keyBelongsToThisNode(ll keyId);
 };
 
 #endif

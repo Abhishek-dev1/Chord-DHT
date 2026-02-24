@@ -20,7 +20,7 @@ void initialize(){
 
 	cout<<"listening at port number "<<nodeInfo.sp.getPortNumber()<<endl;
 
-	cout<<"showHelp\n";
+	cout<<"help\n";
 
 	string command;
 
