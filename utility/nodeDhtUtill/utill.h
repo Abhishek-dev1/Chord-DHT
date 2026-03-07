@@ -33,8 +33,8 @@ class utillFunctions{
 		void setTimer(struct timeval &timer);
 
 		void sendNeccessaryKeys(NodeDht &nodeInfo,int newSock,struct sockaddr_in client,string nodeIdString);
-		void sendKeyToNode(pair< pair<string,int> , ll > node,ll keyHash,string value);
-		void sendValToNode(NodeDht nodeInfo,int newSock,struct sockaddr_in client,string nodeIdString);
+		void sendKeyToNode(pair< pair<string,int> , ll > node,ll keyHash,string value,int ttl = 8);
+		void sendValToNode(NodeDht &nodeInfo,int newSock,struct sockaddr_in client,string nodeIdString);
 		string getKeyFromNode(pair< pair<string,int> , ll > node,string keyHash);
 		pair<ll,string> getKeyAndVal(string keyAndVal);
 		void getKeysFromSuccessor(NodeDht &nodeInfo,string ip,int port);
@@ -43,9 +43,9 @@ class utillFunctions{
 		pair< pair<string,int> , ll > getPredecessorNode(string ip,int port,string ipClient,int ipPort,bool forStabilize);
 		ll getSuccessorId(string ip,int port);
 
-		void sendPredecessor(NodeDht nodeInfo,int newSock,struct sockaddr_in client);
-		void sendSuccessor(NodeDht nodeInfo,string nodeIdString,int newSock,struct sockaddr_in client);
-		void sendSuccessorId(NodeDht nodeInfo,int newSock,struct sockaddr_in client);
+		void sendPredecessor(NodeDht &nodeInfo,int newSock,struct sockaddr_in client);
+		void sendSuccessor(NodeDht &nodeInfo,string nodeIdString,int newSock,struct sockaddr_in client);
+		void sendSuccessorId(NodeDht &nodeInfo,int newSock,struct sockaddr_in client);
 		void sendAcknowledgement(int newSock,struct sockaddr_in client);
 		//Finger Table
 		vector< pair<string,int> > getSuccessorListFromNode(string ip,int port);
