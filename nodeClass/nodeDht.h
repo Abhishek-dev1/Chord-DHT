@@ -22,9 +22,10 @@ private:
 	vector< pair< pair<string, int> , ll > > successorList;
 
 	bool isInRing;
+	bool shouldShutdown;
 	
 	// Mutex to protect shared data structures
-	mutable mutex dataMutex;
+	mutable recursive_mutex dataMutex;
 
 public:
 	SocketAndPort sp;
@@ -51,6 +52,7 @@ public:
 	void setFingerTable(string ip, int port, ll hash);
 	void setId(ll id);
 	void setStatus();
+	void clearStatus();
 
 	ll getId();
 	string getValue(ll key);
@@ -60,6 +62,8 @@ public:
 	vector< pair< pair<string, int> , ll > > getSuccessorList();
 	bool getStatus();
 	bool keyBelongsToThisNode(ll keyId);
+	bool isShutdownRequested();
+	void requestShutdown();
 };
 
 #endif

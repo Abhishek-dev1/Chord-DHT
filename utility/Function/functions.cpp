@@ -29,7 +29,7 @@ void put(string key,string value,NodeDht &nodeInfo){
 }
 
 //Get key from the required node 
-void get(string key,NodeDht nodeInfo){
+void get(string key,NodeDht &nodeInfo){
 
     if(key == ""){
         cout<<"Key field empty\n";
@@ -83,8 +83,7 @@ void create(NodeDht &nodeInfo){
 void join(NodeDht &nodeInfo,string ip,string port){
 
     if(help.isNodeAlive(ip,atoi(port.c_str())) == false){
-        cout<<"Sorry but no node is active on this ip or port\n";
-        return;
+        cout<<"Warning: liveness probe failed, attempting join anyway...\n";
     }
 
     /* set server socket details */
@@ -107,32 +106,30 @@ void join(NodeDht &nodeInfo,string ip,string port){
     /* generate id of current node */
     ll nodeId = help.getHash(currIp+":"+currPort);    
 
-    char charNodeId[41];
-    strcpy(charNodeId,to_string(nodeId).c_str());
-
+    string nodeIdStr = to_string(nodeId);
 
     /* node sends it's id to main node to find it's successor */
-    if (sendto(sock, charNodeId, strlen(charNodeId), 0, (struct sockaddr*) &server, l) == -1){
+    if (sendto(sock, nodeIdStr.c_str(), nodeIdStr.length(), 0, (struct sockaddr*) &server, l) == -1){
         perror("Error: Failed to send node ID in join()");
         close(sock);
         return;
     }
 
     // node receives id and port of it's successor 
-    char ipAndPort[40];
+    char recvBuf[1024];
     int len;
-    if ((len = recvfrom(sock, ipAndPort, 1024, 0, (struct sockaddr *) &server, &l)) == -1){
+    if ((len = recvfrom(sock, recvBuf, 1023, 0, (struct sockaddr *) &server, &l)) == -1){
         perror("Error: Failed to receive successor info in join()");
         close(sock);
         return;
     }
-    ipAndPort[len] = '\0';
+    recvBuf[len] = '\0';
 
     close(sock);
 
     cout<<"Successfully joined the ring\n";
 
-    string key = ipAndPort;
+    string key = recvBuf;
     ll hash = help.getHash(key);
     pair<string,int> ipAndPortPair = help.getIpAndPort(key);
 
@@ -158,7 +155,7 @@ void join(NodeDht &nodeInfo,string ip,string port){
 
 
 //To print successor,predecessor,successor list and finger table of node 
-void printState(NodeDht nodeInfo){
+void printState(NodeDht &nodeInfo){
     string ip = nodeInfo.sp.getIpAddress();
     ll id = nodeInfo.getId();
     int port = nodeInfo.sp.getPortNumber();
@@ -193,47 +190,55 @@ void leave(NodeDht &nodeInfo){
 
     pair< pair<string,int> , ll > succ = nodeInfo.getSuccessor();
     ll id = nodeInfo.getId();
+    bool transferredKeys = false;
 
-    if(id == succ.second)
-        return;
+    if(id != succ.second){
+        /* transfer all keys to successor before leaving the ring */
+        vector< pair<ll , string> > keysAndValuesVector = nodeInfo.getAllKeysForSuccessor();
 
-    /* transfer all keys to successor before leaving the ring */
+        if(keysAndValuesVector.size() != 0){
+            string keysAndValues = "";
 
-    vector< pair<ll , string> > keysAndValuesVector = nodeInfo.getAllKeysForSuccessor();
+            /* arrange all keys/vals as key1:val1;key2:val2; */
+            for(int i=0;i<keysAndValuesVector.size();i++){
+                keysAndValues += to_string(keysAndValuesVector[i].first) + ":" + keysAndValuesVector[i].second;
+                keysAndValues += ";";
+            }
 
-    if(keysAndValuesVector.size() == 0)
-        return;
+            keysAndValues += "storeKeys";
 
-    string keysAndValues = "";
+            struct sockaddr_in serverToConnectTo;
+            socklen_t l = sizeof(serverToConnectTo);
 
-    /* will arrange all keys and val in form of key1:val1;key2:val2; */
-    for(int i=0;i<keysAndValuesVector.size();i++){
-        keysAndValues += to_string(keysAndValuesVector[i].first) + ":" + keysAndValuesVector[i].second;
-        keysAndValues += ";";
+            help.setServerDetails(serverToConnectTo,succ.first.first,succ.first.second);
+
+            int sock = socket(AF_INET,SOCK_DGRAM,0);
+
+            if(sock < 0){
+                perror("Error: Socket creation failed in leave()");
+            }
+            else{
+                if(sendto(sock,keysAndValues.c_str(),keysAndValues.length(),0,(struct sockaddr *)&serverToConnectTo,l) < 0){
+                    perror("Error: Failed to send keys in leave()");
+                }
+                else{
+                    transferredKeys = true;
+                }
+                close(sock);
+            }
+        }
     }
-
-    keysAndValues += "storeKeys";
-
-    struct sockaddr_in serverToConnectTo;
-    socklen_t l = sizeof(serverToConnectTo);
-
-    help.setServerDetails(serverToConnectTo,succ.first.first,succ.first.second);
-
-    int sock = socket(AF_INET,SOCK_DGRAM,0);
-
-    if(sock < 0){
-        perror("Error: Socket creation failed in leave()");
-        return;
+    
+    /* Request graceful shutdown of background threads */
+    nodeInfo.requestShutdown();
+    nodeInfo.clearStatus();
+    
+    if(transferredKeys){
+        cout << "Node left the ring gracefully. Keys were transferred to successor." << endl;
     }
-
-    char keysAndValuesChar[2000];
-    strcpy(keysAndValuesChar,keysAndValues.c_str());
-
-    if(sendto(sock,keysAndValuesChar,strlen(keysAndValuesChar),0,(struct sockaddr *)&serverToConnectTo,l) < 0){
-        perror("Error: Failed to send keys in leave()");
+    else{
+        cout << "Node left the ring gracefully." << endl;
     }
-
-    close(sock);
 }
 
 /* perform different tasks according to received msg */
@@ -248,17 +253,35 @@ void doTask(NodeDht &nodeInfo,int newSock,struct sockaddr_in client,string nodeI
     /* check if the sent msg is in form of key:val, if yes then store it in current node (for put ) */
     else if(help.isKeyValue(nodeIdString)){
         pair< ll , string > keyAndVal = help.getKeyAndVal(nodeIdString);
-        
-        // Check if key belongs to this node
-        if(nodeInfo.keyBelongsToThisNode(keyAndVal.first)){
+        int ttl = 8;
+        if(nodeIdString.rfind("kvh:", 0) == 0){
+            int pos = nodeIdString.find(':', 4);
+            if(pos != -1){
+                ttl = stoi(nodeIdString.substr(4, pos - 4));
+            }
+        }
+
+        if(keyAndVal.first == -1){
+            return;
+        }
+
+        pair< pair<string,int> , ll > self;
+        self.first.first = nodeInfo.sp.getIpAddress();
+        self.first.second = nodeInfo.sp.getPortNumber();
+        self.second = nodeInfo.getId();
+
+        // Route to computed owner. If routing is ambiguous/loops back, store locally.
+        pair< pair<string,int> , ll > owner = nodeInfo.findSuccessor(keyAndVal.first);
+        bool ownerInvalid = (owner.first.first == "" || owner.first.second == -1 || owner.second == -1);
+        bool ownerIsSelf = (owner.second == self.second &&
+                            owner.first.first == self.first.first &&
+                            owner.first.second == self.first.second);
+
+        if(ttl <= 0 || ownerInvalid || ownerIsSelf || nodeInfo.keyBelongsToThisNode(keyAndVal.first)){
             nodeInfo.storeKey(keyAndVal.first , keyAndVal.second);
             cout << "Key " << keyAndVal.first << " stored successfully in this node" << endl;
-        }
-        else {
-            // Key does not belong to this node, forward to successor
-            cout << "Key " << keyAndVal.first << " does not belong to this node, forwarding to successor" << endl;
-            pair< pair<string,int> , ll > successor = nodeInfo.getSuccessor();
-            help.sendKeyToNode(successor, keyAndVal.first, keyAndVal.second);
+        } else {
+            help.sendKeyToNode(owner, keyAndVal.first, keyAndVal.second, ttl - 1);
         }
     }
 
@@ -309,7 +332,8 @@ void listenTo(NodeDht &nodeInfo){
     socklen_t l = sizeof(client);
 
     /* wait for any client to connect and create a new thread as soon as one connects */
-    while(1){
+    /* exit loop when shutdown is requested */
+    while(!nodeInfo.isShutdownRequested()){
         const int BUF_SIZE = 2048;
         char charNodeId[BUF_SIZE];
         int sock = nodeInfo.sp.getSocketFd();
@@ -323,13 +347,15 @@ void listenTo(NodeDht &nodeInfo){
         thread f(doTask,ref(nodeInfo),sock,client,nodeIdString);
         f.detach();
     }
+    
+    cout << "Listen thread shutting down gracefully." << endl;
 }
 
 
 void doStabilize(NodeDht &nodeInfo){
 
-    /* do stabilize tasks */
-    while(1){
+    /* do stabilize tasks until shutdown is requested */
+    while(!nodeInfo.isShutdownRequested()){
 
         nodeInfo.checkPredecessor();
 
@@ -343,6 +369,8 @@ void doStabilize(NodeDht &nodeInfo){
 
         this_thread::sleep_for(chrono::milliseconds(300));
     }
+    
+    cout << "Stabilize thread shutting down gracefully." << endl;
 }
 
 /* call notify of current node which will notify curr node of contacting node */

@@ -5,23 +5,26 @@
 
 //Port number generator
 void SocketAndPort::specifyPortServer(){
-
-	srand(time(0));
-	portNoServer = rand() % 65536;
-	if(portNoServer < 1024)
-		portNoServer += 1024;
-
+	srand(time(0) ^ getpid());
 	socklen_t len = sizeof(current);
 
-	sock = socket(AF_INET,SOCK_DGRAM,0);
-	current.sin_family = AF_INET;
-	current.sin_port = htons(portNoServer);
-	current.sin_addr.s_addr = inet_addr("127.0.0.1");
+	for (int attempt = 0; attempt < 200; attempt++) {
+		portNoServer = 1024 + (rand() % (65535 - 1024));
 
-	if( bind(sock,(struct sockaddr *)&current,len) < 0){
-		perror("ERROR! Binding the port");
-		exit(-1);
+		sock = socket(AF_INET,SOCK_DGRAM,0);
+		current.sin_family = AF_INET;
+		current.sin_port = htons(portNoServer);
+		current.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+		if (bind(sock,(struct sockaddr *)&current,len) == 0) {
+			return;
+		}
+
+		close(sock);
 	}
+
+	perror("ERROR! Binding the port");
+	exit(-1);
 
 }
 bool SocketAndPort::portInUse(int portNo){

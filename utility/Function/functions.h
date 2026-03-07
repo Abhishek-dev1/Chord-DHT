@@ -10,10 +10,10 @@ using namespace std;
 #define ll long long int
 
 void put(string key,string value,NodeDht &nodeInfo);
-void get(string key,NodeDht nodeInfo);
+void get(string key,NodeDht &nodeInfo);
 void create(NodeDht &nodeInfo);
 void join(NodeDht &nodeInfo,string ip,string port);
-void printState(NodeDht nodeInfo);
+void printState(NodeDht &nodeInfo);
 void listenTo(NodeDht &nodeInfo);
 void doStabilize(NodeDht &nodeInfo);
 void callNotify(NodeDht &nodeInfo,string ipAndPort);

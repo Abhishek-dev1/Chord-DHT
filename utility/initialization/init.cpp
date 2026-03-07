@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -13,7 +14,7 @@ using namespace std;
 
 void initialize(){
 	
-	NodeDht nodeInfo = NodeDht();
+	NodeDht nodeInfo;
 
 	//open a socket to listen to other nodes 
 	nodeInfo.sp.specifyPortServer();
@@ -32,7 +33,17 @@ void initialize(){
 		utillFunctions help = utillFunctions();
 		vector<string> arguments = help.splitCommand(command);
 
+		// Skip empty commands
+		if(arguments.size() == 0){
+			cout<<"Invalid\n";
+			continue;
+		}
+
 		string arg = arguments[0];
+		
+		// Convert command to lowercase for case-insensitive matching
+		transform(arg.begin(), arg.end(), arg.begin(), ::tolower);
+		
 		if(arguments.size() == 1){
 
 			//creates a node
@@ -60,6 +71,7 @@ void initialize(){
 			else if(arg == "leave"){
 				leave(nodeInfo);
 				nodeInfo.sp.closeSocket();
+				this_thread::sleep_for(chrono::milliseconds(200));
 				return;
 			}
 

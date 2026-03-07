@@ -75,6 +75,9 @@ pair<string,int> utillFunctions::getIpAndPort(string key){
 
 /* will decide if id is in form of key:value or not */
 bool utillFunctions::isKeyValue(string id){
+    if(id.rfind("kvh:", 0) == 0){
+        return true;
+    }
 
     int pos = id.find(":");
     if(pos == -1) return false;
@@ -86,6 +89,17 @@ bool utillFunctions::isKeyValue(string id){
 }
 //seprate key and value
 pair<ll,string> utillFunctions::getKeyAndVal(string keyAndVal){
+    if(keyAndVal.rfind("kvh:", 0) == 0){
+        int first = keyAndVal.find(':', 4);
+        int second = keyAndVal.find(':', first + 1);
+        if(first == -1 || second == -1){
+            return {-1, ""};
+        }
+
+        string key = keyAndVal.substr(first + 1, second - first - 1);
+        string val = keyAndVal.substr(second + 1);
+        return {stoll(key), val};
+    }
 
     int pos = keyAndVal.find(':');
     string key = keyAndVal.substr(0,pos);
@@ -112,19 +126,20 @@ string utillFunctions::getKeyFromNode(pair< pair<string,int> , ll > node,string 
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("error: Socket creation failed in getKeyFromNode");
+        return "";
     }
 
     keyHash += "k";
 
-    char keyHashChar[40];
-    strcpy(keyHashChar,keyHash.c_str());
+    sendto(sock,keyHash.c_str(),keyHash.length(),0,(struct sockaddr *)&serverToConnectTo,l);
 
-    sendto(sock,keyHashChar,strlen(keyHashChar),0,(struct sockaddr *)&serverToConnectTo,l);
-
-    char valChar[100];
-    int len = recvfrom(sock,valChar,1024,0,(struct sockaddr *)&serverToConnectTo,&l);
+    char valChar[1024];
+    int len = recvfrom(sock,valChar,sizeof(valChar)-1,0,(struct sockaddr *)&serverToConnectTo,&l);
+    if(len < 0){
+        close(sock);
+        return "";
+    }
 
     valChar[len] = '\0';
 
@@ -177,7 +192,7 @@ string utillFunctions::combineIpAndPort(string ip,string port){
     return ipAndPort;
 }
 //Send key to node who requested for it
-void utillFunctions::sendKeyToNode(pair< pair<string,int> , ll > node,ll keyHash,string value){
+void utillFunctions::sendKeyToNode(pair< pair<string,int> , ll > node,ll keyHash,string value,int ttl){
     string ip = node.first.first;
     int port = node.first.second;
 
@@ -189,16 +204,14 @@ void utillFunctions::sendKeyToNode(pair< pair<string,int> , ll > node,ll keyHash
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("error: Socket creation failed in sendKeyToNode");
+        return;
     }
 
-    string keyAndVal = combineIpAndPort(to_string(keyHash),value);
+    if(ttl < 0) ttl = 0;
+    string keyAndVal = "kvh:" + to_string(ttl) + ":" + to_string(keyHash) + ":" + value;
 
-    char keyAndValChar[100];
-    strcpy(keyAndValChar,keyAndVal.c_str());
-
-    sendto(sock,keyAndValChar,strlen(keyAndValChar),0,(struct sockaddr *)&serverToConnectTo,l);
+    sendto(sock,keyAndVal.c_str(),keyAndVal.length(),0,(struct sockaddr *)&serverToConnectTo,l);
 
     close(sock);
 }
@@ -220,16 +233,12 @@ void utillFunctions::getKeysFromSuccessor(NodeDht &nodeInfo,string ip,int port){
     /* node sends msg "getKeys:id" to it's successor to get all keys which belongs to this node now */
     string id = to_string(nodeInfo.getId());
 
-
     string msg = "getKeys:" + id;
 
-    char msgChar[40];
-    strcpy(msgChar,msg.c_str());
+    sendto(sock,msg.c_str(),msg.length(),0,(struct sockaddr *) &serverToConnectTo,l);
 
-    sendto(sock,msgChar,strlen(msgChar),0,(struct sockaddr *) &serverToConnectTo,l);
-
-    char keysAndValuesChar[2000];
-    int len = recvfrom(sock,keysAndValuesChar,2000,0,(struct sockaddr *) &serverToConnectTo,&l);
+    char keysAndValuesChar[2001];
+    int len = recvfrom(sock,keysAndValuesChar,sizeof(keysAndValuesChar)-1,0,(struct sockaddr *) &serverToConnectTo,&l);
 
     close(sock);
 
@@ -334,43 +343,34 @@ void utillFunctions::sendNeccessaryKeys(NodeDht &nodeInfo,int newSock,struct soc
         keysAndValues += ";";
     }
 
-    char keysAndValuesChar[2000];
-    strcpy(keysAndValuesChar,keysAndValues.c_str());
-
-    sendto(newSock,keysAndValuesChar,strlen(keysAndValuesChar),0,(struct sockaddr *)&client,l);
+    sendto(newSock,keysAndValues.c_str(),keysAndValues.length(),0,(struct sockaddr *)&client,l);
 }
 
 //Sending value to node
-void utillFunctions::sendValToNode(NodeDht nodeInfo,int newSock,struct sockaddr_in client,string nodeIdString){
+void utillFunctions::sendValToNode(NodeDht &nodeInfo,int newSock,struct sockaddr_in client,string nodeIdString){
     nodeIdString.pop_back();
     ll key = stoll(nodeIdString);
     string val = nodeInfo.getValue(key);
 
     socklen_t l = sizeof(client);
 
-    char valChar[100];
-    strcpy(valChar,val.c_str());
-
-    sendto(newSock,valChar,strlen(valChar),0,(struct sockaddr *)&client,l);
+    sendto(newSock,val.c_str(),val.length(),0,(struct sockaddr *)&client,l);
 }
 
 //Send successor id of current node to the contacting node 
-void utillFunctions::sendSuccessorId(NodeDht nodeInfo,int newSock,struct sockaddr_in client){
+void utillFunctions::sendSuccessorId(NodeDht &nodeInfo,int newSock,struct sockaddr_in client){
 
     pair< pair<string,int> , ll > succ = nodeInfo.getSuccessor();
     string succId = to_string(succ.second);
-    char succIdChar[40];
 
     socklen_t l = sizeof(client);
 
-    strcpy(succIdChar,succId.c_str());
-
-    sendto(newSock,succIdChar,strlen(succIdChar),0,(struct sockaddr *)&client,l);
+    sendto(newSock,succId.c_str(),succId.length(),0,(struct sockaddr *)&client,l);
 
 }
 
 // To find successor of contacting node and send it's ip:port to it 
-void utillFunctions::sendSuccessor(NodeDht nodeInfo,string nodeIdString,int newSock,struct sockaddr_in client){
+void utillFunctions::sendSuccessor(NodeDht &nodeInfo,string nodeIdString,int newSock,struct sockaddr_in client){
     
     ll nodeId = stoll(nodeIdString);
 
@@ -380,19 +380,18 @@ void utillFunctions::sendSuccessor(NodeDht nodeInfo,string nodeIdString,int newS
     pair< pair<string,int> , ll > succNode;
     succNode = nodeInfo.findSuccessor(nodeId);
 
-    // get Ip and port of successor as ip:port in char array to send 
-    char ipAndPort[40];
+    // get Ip and port of successor as ip:port string 
     string succIp = succNode.first.first;
     string succPort = to_string(succNode.first.second);
-    strcpy(ipAndPort,combineIpAndPort(succIp,succPort).c_str());
+    string ipAndPort = combineIpAndPort(succIp,succPort);
 
     //send ip and port info to the respective node 
-    sendto(newSock, ipAndPort, strlen(ipAndPort), 0, (struct sockaddr*) &client, l);
+    sendto(newSock, ipAndPort.c_str(), ipAndPort.length(), 0, (struct sockaddr*) &client, l);
 
 }
 
 //send ip:port of predecessor of current node to contacting node 
-void utillFunctions::sendPredecessor(NodeDht nodeInfo,int newSock,struct sockaddr_in client){
+void utillFunctions::sendPredecessor(NodeDht &nodeInfo,int newSock,struct sockaddr_in client){
     
     pair< pair<string,int> , ll > predecessor = nodeInfo.getPredecessor();
     
@@ -408,11 +407,7 @@ void utillFunctions::sendPredecessor(NodeDht nodeInfo,int newSock,struct sockadd
 
     else{
         string ipAndPort = combineIpAndPort(ip,port);
-
-        char ipAndPortChar[40];
-        strcpy(ipAndPortChar,ipAndPort.c_str());
-
-        sendto(newSock, ipAndPortChar, strlen(ipAndPortChar), 0, (struct sockaddr*) &client, l);
+        sendto(newSock, ipAndPort.c_str(), ipAndPort.length(), 0, (struct sockaddr*) &client, l);
 
     }
 }
@@ -446,9 +441,9 @@ ll utillFunctions::getSuccessorId(string ip,int port){
         return -1;
     }
 
-    char succIdChar[40];
+    char succIdChar[1024];
 
-    int len = recvfrom(sock,succIdChar,1024,0,(struct sockaddr*) &serverToConnectTo, &l);
+    int len = recvfrom(sock,succIdChar,sizeof(succIdChar)-1,0,(struct sockaddr*) &serverToConnectTo, &l);
 
     close(sock);
 
@@ -463,8 +458,8 @@ ll utillFunctions::getSuccessorId(string ip,int port){
 }
 
 void utillFunctions::setTimer(struct timeval &timer){
-    timer.tv_sec = 0;
-    timer.tv_usec = 100000;
+    timer.tv_sec = 1;
+    timer.tv_usec = 0;
 }
 
 //get predecessor node (ip:port) of the node having ip and port 
@@ -482,8 +477,12 @@ pair< pair<string,int> , ll > utillFunctions::getPredecessorNode(string ip,int p
     int sock = socket(AF_INET,SOCK_DGRAM,0);
 
     if(sock < 0){
-        perror("error");
-        exit(-1);
+        perror("error: Socket creation failed in getPredecessorNode");
+        pair< pair<string,int> , ll > node;
+        node.first.first = "";
+        node.first.second = -1;
+        node.second = -1;
+        return node;
     }
 
     setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char*)&timer,sizeof(struct timeval));
@@ -500,10 +499,7 @@ pair< pair<string,int> , ll > utillFunctions::getPredecessorNode(string ip,int p
     else msg = "p2";
 
 
-    char ipAndPortChar[40];
-    strcpy(ipAndPortChar,msg.c_str());
-
-    if (sendto(sock, ipAndPortChar, strlen(ipAndPortChar), 0, (struct sockaddr*) &serverToConnectTo, l) < 0){
+    if (sendto(sock, msg.c_str(), msg.length(), 0, (struct sockaddr*) &serverToConnectTo, l) < 0){
         perror("Error: sendto failed in getPredecessorNode");
         close(sock);
         pair< pair<string,int> , ll > node;
@@ -513,7 +509,8 @@ pair< pair<string,int> , ll > utillFunctions::getPredecessorNode(string ip,int p
         return node;
     }
 
-    int len = recvfrom(sock, ipAndPortChar, 1024, 0, (struct sockaddr *) &serverToConnectTo, &l);
+    char recvBuf[1024];
+    int len = recvfrom(sock, recvBuf, sizeof(recvBuf)-1, 0, (struct sockaddr *) &serverToConnectTo, &l);
     close(sock);
 
     if(len < 0){
@@ -524,10 +521,8 @@ pair< pair<string,int> , ll > utillFunctions::getPredecessorNode(string ip,int p
         return node;
     }
 
-    ipAndPortChar[len] = '\0';
-
-    string ipAndPort = ipAndPortChar;
-    ll hash;
+    recvBuf[len] = '\0';
+    string ipAndPort = recvBuf;
     pair<string,int> ipAndPortPair;
 
     pair< pair<string,int> , ll > node;
@@ -574,8 +569,8 @@ vector< pair<string,int> > utillFunctions::getSuccessorListFromNode(string ip,in
 
     sendto(sock,msg,strlen(msg),0,(struct sockaddr *)&serverToConnectTo,l);
 
-    char succListChar[1000];
-    int len = recvfrom(sock,succListChar,1000,0,(struct sockaddr *)&serverToConnectTo,&l);
+    char succListChar[1001];
+    int len = recvfrom(sock,succListChar,sizeof(succListChar)-1,0,(struct sockaddr *)&serverToConnectTo,&l);
 
     close(sock);
 
@@ -603,10 +598,7 @@ void utillFunctions::sendSuccessorList(NodeDht &nodeInfo,int sock,struct sockadd
 
     string successorList = splitSuccessorList(list);
 
-    char successorListChar[1000];
-    strcpy(successorListChar,successorList.c_str());
-
-    sendto(sock,successorListChar,strlen(successorListChar),0,(struct sockaddr *)&client,l);
+    sendto(sock,successorList.c_str(),successorList.length(),0,(struct sockaddr *)&client,l);
 
 }
 
@@ -630,39 +622,37 @@ void utillFunctions::sendAcknowledgement(int newSock,struct sockaddr_in client){
 
 //Check if node having ip and port is still alive or not 
 bool utillFunctions::isNodeAlive(string ip,int port){
-    struct sockaddr_in serverToConnectTo;
-    socklen_t l = sizeof(serverToConnectTo);
+    for(int attempt = 0; attempt < 3; attempt++){
+        struct sockaddr_in serverToConnectTo;
+        socklen_t l = sizeof(serverToConnectTo);
 
-    setServerDetails(serverToConnectTo,ip,port);
+        setServerDetails(serverToConnectTo,ip,port);
 
-    //set timer for socket 
-    struct timeval timer;
-    setTimer(timer);
+        //set timer for socket 
+        struct timeval timer;
+        setTimer(timer);
 
+        int sock = socket(AF_INET,SOCK_DGRAM,0);
 
-    int sock = socket(AF_INET,SOCK_DGRAM,0);
+        if(sock < 0){
+            perror("Error: Socket creation failed in isNodeAlive");
+            return false;
+        }
 
-    if(sock < 0){
-        perror("Error: Socket creation failed in isNodeAlive");
-        return false;
+        //set timer on this socket 
+        setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char*)&timer,sizeof(struct timeval));
+
+        char msg[] = "alive";
+        sendto(sock,msg,strlen(msg),0,(struct sockaddr *)&serverToConnectTo,l);
+
+        char response[5];
+        int len = recvfrom(sock,response,2,0,(struct sockaddr *)&serverToConnectTo,&l);
+        close(sock);
+
+        if(len >= 0){
+            return true;
+        }
     }
 
-    //set timer on this socket 
-    setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char*)&timer,sizeof(struct timeval));
-
-    char msg[] = "alive";
-    sendto(sock,msg,strlen(msg),0,(struct sockaddr *)&serverToConnectTo,l);
-
-    char response[5];
-    int len = recvfrom(sock,response,2,0,(struct sockaddr *)&serverToConnectTo,&l);
-
-    close(sock);
-
-    //node is still active 
-    if(len >= 0){
-        return true;
-    }
-    else
-        return false;
+    return false;
 }
-
